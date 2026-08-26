@@ -3,7 +3,7 @@
     "name": "Live Player Coordinates",
     "codes": "live_coordinates",
     "type": "static",
-    "img": "",
+    "img": "images/ui/coordinate-background.png",
     "overlay_background": "#C0000000",
     "overlay_font_size": 14,
     "overlay_align": "center"
