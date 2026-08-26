@@ -1,6 +1,35 @@
 -- Run from the pack root with: lua tests/test_location_tracking.lua
 
 local fixtures = dofile("tests/location_tracking_fixtures.lua")
+
+local overlay = nil
+local requested_keys = nil
+local notified_keys = nil
+local handlers = {}
+
+Tracker = {
+    FindObjectForCode = function(_self, code)
+        if code ~= "live_coordinates" then
+            return nil
+        end
+        return {
+            SetOverlay = function(_item, value)
+                overlay = value
+            end,
+        }
+    end,
+}
+
+Archipelago = {
+    TeamNumber = 2,
+    PlayerNumber = 7,
+    AddClearHandler = function(_self, _name, callback) handlers.clear = callback end,
+    AddRetrievedHandler = function(_self, _name, callback) handlers.retrieved = callback end,
+    AddSetReplyHandler = function(_self, _name, callback) handlers.updated = callback end,
+    Get = function(_self, keys) requested_keys = keys end,
+    SetNotify = function(_self, keys) notified_keys = keys end,
+}
+
 dofile("scripts/location_tracking.lua")
 
 local function assert_close(actual, expected, name)
@@ -29,5 +58,23 @@ for _, value in ipairs(fixtures.invalid) do
     assert(LOCATION_TRACKING.location_icon_coords(value) == nil,
         "malformed or non-finite input must not produce a placement")
 end
+
+assert(overlay == "Position unavailable", "display must start without stale coordinates")
+
+handlers.clear({})
+assert(requested_keys[1] == "LivePosition_2_7", "clear handler requested the wrong key")
+assert(notified_keys[1] == "LivePosition_2_7", "clear handler watched the wrong key")
+
+handlers.retrieved("OtherKey", {x = 1, y = 2, z = 3})
+assert(overlay == "Position unavailable", "unrelated DataStorage keys must be ignored")
+
+handlers.retrieved("LivePosition_2_7", {x = 842.34, y = -127.76, z = -416.24})
+assert(overlay == "X: 842.3   Y: -127.8   Z: -416.2", "retrieved coordinates were formatted incorrectly")
+
+handlers.updated("LivePosition_2_7", {x = -1, y = 2.25, z = 3}, nil)
+assert(overlay == "X: -1.0   Y: 2.2   Z: 3.0", "updated coordinates were formatted incorrectly")
+
+handlers.updated("LivePosition_2_7", {x = 0 / 0, y = 2, z = 3}, nil)
+assert(overlay == "Position unavailable", "invalid coordinate updates must clear the display")
 
 print("location_tracking.lua: all fixtures passed")

@@ -1,0 +1,11 @@
+[
+  {
+    "name": "Live Player Coordinates",
+    "codes": "live_coordinates",
+    "type": "static",
+    "img": "",
+    "overlay_background": "#C0000000",
+    "overlay_font_size": 14,
+    "overlay_align": "center"
+  }
+]
