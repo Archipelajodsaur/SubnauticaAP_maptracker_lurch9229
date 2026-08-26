@@ -14,6 +14,7 @@ if (string.find(Tracker.ActiveVariantUID, "items_only"))
     Tracker:AddLayouts("layouts/settings.json")
 elseif (string.find(Tracker.ActiveVariantUID, "map_tracker")) 
     then
+    ScriptHost:LoadScript("scripts/location_tracking.lua")
     Tracker:AddMaps("maps/maps.json")
     Tracker:AddLayouts("layouts/tracker_standard.json")
     Tracker:AddLayouts("layouts/broadcast_vertical.json")
@@ -23,4 +24,4 @@ elseif (string.find(Tracker.ActiveVariantUID, "map_tracker"))
     Tracker:AddLayouts("layouts/settings.json")   
 end
 
-ScriptHost:LoadScript("scripts/autotracking.lua") 
+ScriptHost:LoadScript("scripts/autotracking.lua")
