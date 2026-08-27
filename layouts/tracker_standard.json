@@ -41,6 +41,14 @@
       ["Lava Lizard badge", "Mesmer badge", "Sand Shark badge", "Stalker badge", "Cuddlefish badge"]
     ]
   },
+
+  "coordinate_display": {
+    "type": "item",
+    "item": "live_coordinates",
+    "item_size": "320,32",
+    "h_alignment": "center",
+    "margin": "0,4"
+  },
   
 "tracker_horizontal": 
   {
@@ -99,6 +107,11 @@
           "h_alignment": "stretch",
           "margin": "0, 0, 0, 0",
           "content": [
+            {
+              "type": "layout",
+              "key": "coordinate_display",
+              "dock": "bottom"
+            },
             {
               "type": "tabbed",
               "dock": "top",
@@ -216,6 +229,11 @@
           "h_alignment": "stretch",
           "margin": "0, 0, 0, 0",
           "content": [
+            {
+              "type": "layout",
+              "key": "coordinate_display",
+              "dock": "bottom"
+            },
             {
               "type": "tabbed",
               "dock": "top",
