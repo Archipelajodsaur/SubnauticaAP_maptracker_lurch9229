@@ -45,6 +45,7 @@ LOCATION_TRACKING = {
 }
 
 local watched_position_key = nil
+local player_marker_id = "player"
 
 local function set_coordinate_overlay(value)
     if Tracker == nil or Tracker.FindObjectForCode == nil then
@@ -67,6 +68,29 @@ local function set_coordinate_overlay(value)
     display:SetOverlay(string.format("X: %.1f   Y: %.1f   Z: %.1f", value.x, value.y, value.z))
 end
 
+local function set_player_marker(value)
+    if Tracker == nil or Tracker.UiHint == nil then
+        return
+    end
+
+    local placement = crater_location_icon_coords(value)
+    local hint_name = "MapMarker Crater"
+    if placement == nil or placement.visible ~= true then
+        Tracker:UiHint(hint_name, player_marker_id)
+        return
+    end
+
+    Tracker:UiHint(
+        "MapMarker " .. placement.map,
+        string.format("%s,%.6f,%.6f", player_marker_id, placement.x, placement.y)
+    )
+end
+
+local function set_player_position(value)
+    set_coordinate_overlay(value)
+    set_player_marker(value)
+end
+
 local function current_position_key()
     if Archipelago == nil
         or type(Archipelago.TeamNumber) ~= "number"
@@ -81,7 +105,7 @@ end
 
 local function on_position_clear(_slot_data)
     watched_position_key = current_position_key()
-    set_coordinate_overlay(nil)
+    set_player_position(nil)
 
     if watched_position_key == nil then
         return
@@ -93,11 +117,11 @@ end
 
 local function on_position_value(key, value)
     if key == watched_position_key then
-        set_coordinate_overlay(value)
+        set_player_position(value)
     end
 end
 
-set_coordinate_overlay(nil)
+set_player_position(nil)
 
 if Archipelago ~= nil
     and Archipelago.AddClearHandler ~= nil

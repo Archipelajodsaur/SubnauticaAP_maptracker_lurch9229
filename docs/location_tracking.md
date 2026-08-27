@@ -22,10 +22,15 @@ Every finite coordinate is returned with `visible = true`, including a coordinat
 800×800 Crater image. This lets a host clip or diagnose off-map positions without treating an
 otherwise valid player position as missing.
 
-Vanilla PopTracker also watches the same DataStorage key for the connected team and player. It
-requests the current value on connect, subscribes to later updates, and displays raw world XYZ to
-one decimal place beneath the map. Invalid or unavailable values display `Position unavailable`.
-This readout does not attempt to create a dynamic marker in PopTracker.
+PopTracker also watches the same DataStorage key for the connected team and player. It requests
+the current value on connect, subscribes to later updates, and uses the `MapMarker Crater` UI hint
+to keep a `player` marker at the projected image coordinates. The marker is removed while the
+position is invalid or unavailable. Raw world XYZ remains visible to one decimal place beneath
+the map for diagnostics.
+
+Dynamic map markers require the `feat/map-marker-mvp` PopTracker build or PopTracker 0.36.0 and
+newer. The `UiHint` call is guarded so older PopTracker versions continue to load the pack and
+show the coordinate readout without a marker.
 
 Run `python3 tests/test_crater_projection.py` from the pack root to verify the projection against
 the 39 authored Crater landmarks. If a Lua CLI is available, run

@@ -6,6 +6,7 @@ local overlay = nil
 local requested_keys = nil
 local notified_keys = nil
 local handlers = {}
+local ui_hints = {}
 
 Tracker = {
     FindObjectForCode = function(_self, code)
@@ -17,6 +18,9 @@ Tracker = {
                 overlay = value
             end,
         }
+    end,
+    UiHint = function(_self, name, value)
+        table.insert(ui_hints, {name = name, value = value})
     end,
 }
 
@@ -60,21 +64,32 @@ for _, value in ipairs(fixtures.invalid) do
 end
 
 assert(overlay == "Position unavailable", "display must start without stale coordinates")
+assert(ui_hints[#ui_hints].name == "MapMarker Crater", "marker hint targeted the wrong map")
+assert(ui_hints[#ui_hints].value == "player", "marker must start cleared")
 
 handlers.clear({})
 assert(requested_keys[1] == "LivePosition_2_7", "clear handler requested the wrong key")
 assert(notified_keys[1] == "LivePosition_2_7", "clear handler watched the wrong key")
+assert(ui_hints[#ui_hints].value == "player", "clear handler must remove the marker")
 
+local hint_count = #ui_hints
 handlers.retrieved("OtherKey", {x = 1, y = 2, z = 3})
 assert(overlay == "Position unavailable", "unrelated DataStorage keys must be ignored")
+assert(#ui_hints == hint_count, "unrelated DataStorage keys must not move the marker")
 
 handlers.retrieved("LivePosition_2_7", {x = 842.34, y = -127.76, z = -416.24})
 assert(overlay == "X: 842.3   Y: -127.8   Z: -416.2", "retrieved coordinates were formatted incorrectly")
+assert(ui_hints[#ui_hints].name == "MapMarker Crater", "marker update targeted the wrong map")
+assert(ui_hints[#ui_hints].value == "player,568.468000,483.248000",
+    "retrieved coordinates produced the wrong marker position")
 
 handlers.updated("LivePosition_2_7", {x = -1, y = 2.25, z = 3}, nil)
 assert(overlay == "X: -1.0   Y: 2.2   Z: 3.0", "updated coordinates were formatted incorrectly")
+assert(ui_hints[#ui_hints].value == "player,399.800000,399.400000",
+    "updated coordinates produced the wrong marker position")
 
 handlers.updated("LivePosition_2_7", {x = 0 / 0, y = 2, z = 3}, nil)
 assert(overlay == "Position unavailable", "invalid coordinate updates must clear the display")
+assert(ui_hints[#ui_hints].value == "player", "invalid coordinate updates must remove the marker")
 
 print("location_tracking.lua: all fixtures passed")
