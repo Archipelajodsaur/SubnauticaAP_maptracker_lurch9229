@@ -38,10 +38,52 @@ local function crater_location_icon_coords(value)
     }
 end
 
+local function location_markers(value)
+    local placement = crater_location_icon_coords(value)
+    if placement ~= nil then
+        return {
+            {
+                id = "player",
+                map = placement.map,
+                x = placement.x,
+                y = placement.y,
+                visible = placement.visible,
+                label = type(value.label) == "string" and value.label or nil,
+                debug = placement.debug,
+            },
+        }
+    end
+
+    if type(value) ~= "table" then
+        return nil
+    end
+
+    local markers = {}
+    for reporter_id, reporter_value in pairs(value) do
+        if type(reporter_id) == "string" and reporter_id ~= "" then
+            local reporter_placement = crater_location_icon_coords(reporter_value)
+            if reporter_placement ~= nil then
+                table.insert(markers, {
+                    id = reporter_id,
+                    map = reporter_placement.map,
+                    x = reporter_placement.x,
+                    y = reporter_placement.y,
+                    visible = reporter_placement.visible,
+                    label = type(reporter_value.label) == "string" and reporter_value.label or nil,
+                    debug = reporter_placement.debug,
+                })
+            end
+        end
+    end
+
+    return #markers > 0 and markers or nil
+end
+
 LOCATION_TRACKING = {
-    api_version = 1,
+    api_version = 2,
     location_setting_key = "LivePosition_{team}_{player}",
     location_icon_coords = crater_location_icon_coords,
+    location_markers = location_markers,
 }
 
 local watched_position_key = nil
@@ -105,12 +147,8 @@ local function set_coordinate_overlay(value)
         return
     end
 
-    local source_count = 0
-    for _, source in pairs(value) do
-        if crater_location_icon_coords(source) ~= nil then
-            source_count = source_count + 1
-        end
-    end
+    local markers = location_markers(value)
+    local source_count = markers ~= nil and #markers or 0
 
     if source_count == 0 then
         display:SetOverlay("Position unavailable")
@@ -149,14 +187,14 @@ local function set_player_markers(value)
     if placement ~= nil and placement.visible == true then
         next_markers[player_marker_id] = placement.map
         set_marker(player_marker_id, placement, marker_label(value))
-    elseif type(value) == "table" then
-        for reporter_id, reporter_value in pairs(value) do
-            if type(reporter_id) == "string" and reporter_id ~= "" then
-                local reporter_placement = crater_location_icon_coords(reporter_value)
-                if reporter_placement ~= nil and reporter_placement.visible == true then
-                    local marker_id = player_marker_id .. "-" .. reporter_id
-                    next_markers[marker_id] = reporter_placement.map
-                    set_marker(marker_id, reporter_placement, marker_label(reporter_value))
+    else
+        local markers = location_markers(value)
+        if markers ~= nil then
+            for _, marker in ipairs(markers) do
+                if marker.visible == true then
+                    local marker_id = player_marker_id .. "-" .. marker.id
+                    next_markers[marker_id] = marker.map
+                    set_marker(marker_id, marker, marker.label or player_marker_label())
                 end
             end
         end

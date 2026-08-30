@@ -45,9 +45,10 @@ local function assert_close(actual, expected, name)
         string.format("%s: expected %.6f, got %.6f", name, expected, actual))
 end
 
-assert(LOCATION_TRACKING.api_version == 1)
+assert(LOCATION_TRACKING.api_version == 2)
 assert(LOCATION_TRACKING.location_setting_key == "LivePosition_{team}_{player}")
 assert(type(LOCATION_TRACKING.location_icon_coords) == "function")
+assert(type(LOCATION_TRACKING.location_markers) == "function")
 
 for _, fixture in ipairs(fixtures.valid) do
     local placement = LOCATION_TRACKING.location_icon_coords(fixture.value)
@@ -61,6 +62,8 @@ end
 
 assert(LOCATION_TRACKING.location_icon_coords(nil) == nil,
     "nil input must not produce a placement")
+assert(LOCATION_TRACKING.location_markers(nil) == nil,
+    "nil input must not produce markers")
 
 for _, value in ipairs(fixtures.invalid) do
     assert(LOCATION_TRACKING.location_icon_coords(value) == nil,
@@ -88,6 +91,20 @@ local function most_recent_hint(marker_id)
     end
     return nil
 end
+
+local exported_reporters = LOCATION_TRACKING.location_markers({
+    desktop = {x = -1, y = 2.25, z = 3, label = "Desktop"},
+    laptop = {x = 842.34, y = -127.76, z = -416.24},
+})
+assert(exported_reporters ~= nil and #exported_reporters == 2,
+    "exported marker resolver must expose every reporter")
+local exported_by_id = {}
+for _, marker in ipairs(exported_reporters) do
+    exported_by_id[marker.id] = marker
+end
+assert(exported_by_id.desktop.label == "Desktop", "exported reporter label was lost")
+assert_close(exported_by_id.desktop.x, 399.8, "exported desktop marker x")
+assert_close(exported_by_id.laptop.y, 483.248, "exported laptop marker y")
 
 -- Previous publishers write one direct coordinate object. Keep rendering that
 -- form while new publishers write a reporter-ID keyed dictionary.

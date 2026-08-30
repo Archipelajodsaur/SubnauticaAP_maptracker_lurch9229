@@ -6,7 +6,11 @@ so it remains inert there. The `items_only` variant does not expose the contract
 not load the `Crater` map.
 
 `location_setting_key` is `LivePosition_{team}_{player}`. The host resolves the placeholders and
-passes the decoded DataStorage table to `location_icon_coords`.
+passes the decoded DataStorage table to `location_icon_coords`. For multi-reporter values, the
+pack also exposes the API-version-2 `location_markers` resolver. It returns one marker table per
+reporter, each with a stable reporter ID, projected map coordinates, visibility, and optional
+label. Shared hosts should use `location_markers` when present and retain `location_icon_coords`
+for scalar payloads.
 
 The resolver accepts only finite numeric `x`, `y`, and `z` Unity world coordinates. It returns
 the exact tracker map name `Crater` and source-image pixels:
