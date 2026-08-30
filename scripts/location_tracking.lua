@@ -12,7 +12,7 @@ local function is_finite_number(value)
         and value ~= -math.huge
 end
 
-local function crater_location_icon_coords(value)
+local function crater_position_icon_coords(value)
     if type(value) ~= "table" then
         return nil
     end
@@ -38,8 +38,26 @@ local function crater_location_icon_coords(value)
     }
 end
 
+local function crater_location_icon_coords(value)
+    local placement = crater_position_icon_coords(value)
+    if placement ~= nil then
+        return placement
+    end
+
+    if type(value) == "table" then
+        for _, reporter_value in pairs(value) do
+            placement = crater_position_icon_coords(reporter_value)
+            if placement ~= nil then
+                return placement
+            end
+        end
+    end
+
+    return nil
+end
+
 local function location_markers(value)
-    local placement = crater_location_icon_coords(value)
+    local placement = crater_position_icon_coords(value)
     if placement ~= nil then
         return {
             {
@@ -61,7 +79,7 @@ local function location_markers(value)
     local markers = {}
     for reporter_id, reporter_value in pairs(value) do
         if type(reporter_id) == "string" and reporter_id ~= "" then
-            local reporter_placement = crater_location_icon_coords(reporter_value)
+            local reporter_placement = crater_position_icon_coords(reporter_value)
             if reporter_placement ~= nil then
                 table.insert(markers, {
                     id = reporter_id,
@@ -80,10 +98,9 @@ local function location_markers(value)
 end
 
 LOCATION_TRACKING = {
-    api_version = 2,
+    api_version = 1,
     location_setting_key = "LivePosition_{team}_{player}",
     location_icon_coords = crater_location_icon_coords,
-    location_markers = location_markers,
 }
 
 local watched_position_key = nil
@@ -136,7 +153,7 @@ local function set_coordinate_overlay(value)
         return
     end
 
-    local placement = crater_location_icon_coords(value)
+    local placement = crater_position_icon_coords(value)
     if placement ~= nil then
         display:SetOverlay(string.format("X: %.1f   Y: %.1f   Z: %.1f", value.x, value.y, value.z))
         return
@@ -183,7 +200,7 @@ local function set_player_markers(value)
     end
 
     local next_markers = {}
-    local placement = crater_location_icon_coords(value)
+    local placement = crater_position_icon_coords(value)
     if placement ~= nil and placement.visible == true then
         next_markers[player_marker_id] = placement.map
         set_marker(player_marker_id, placement, marker_label(value))
