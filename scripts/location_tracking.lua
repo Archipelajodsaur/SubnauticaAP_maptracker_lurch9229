@@ -46,6 +46,43 @@ LOCATION_TRACKING = {
 
 local watched_position_key = nil
 local player_marker_id = "player"
+local player_marker_icon_path = "images/ui/live-player.png"
+
+local function json_string(value)
+    return '"' .. value:gsub('[%z\1-\31\\"]', function(character)
+        local escapes = {
+            ['\\'] = '\\\\',
+            ['"'] = '\\"',
+            ['\b'] = '\\b',
+            ['\f'] = '\\f',
+            ['\n'] = '\\n',
+            ['\r'] = '\\r',
+            ['\t'] = '\\t',
+        }
+        return escapes[character] or string.format("\\u%04x", string.byte(character))
+    end) .. '"'
+end
+
+local function player_marker_label()
+    if Archipelago ~= nil
+        and type(Archipelago.PlayerNumber) == "number"
+        and Archipelago.GetPlayerAlias ~= nil then
+        local succeeded, alias = pcall(Archipelago.GetPlayerAlias, Archipelago, Archipelago.PlayerNumber)
+        if succeeded and type(alias) == "string" and alias ~= "" then
+            return alias
+        end
+    end
+
+    return "Player"
+end
+
+local function marker_label(value)
+    if type(value) == "table" and type(value.label) == "string" and value.label ~= "" then
+        return value.label
+    end
+
+    return player_marker_label()
+end
 
 local function set_coordinate_overlay(value)
     if Tracker == nil or Tracker.FindObjectForCode == nil then
@@ -57,38 +94,85 @@ local function set_coordinate_overlay(value)
         return
     end
 
-    if type(value) ~= "table"
-        or not is_finite_number(value.x)
-        or not is_finite_number(value.y)
-        or not is_finite_number(value.z) then
+    local placement = crater_location_icon_coords(value)
+    if placement ~= nil then
+        display:SetOverlay(string.format("X: %.1f   Y: %.1f   Z: %.1f", value.x, value.y, value.z))
+        return
+    end
+
+    if type(value) ~= "table" then
         display:SetOverlay("Position unavailable")
         return
     end
 
-    display:SetOverlay(string.format("X: %.1f   Y: %.1f   Z: %.1f", value.x, value.y, value.z))
+    local source_count = 0
+    for _, source in pairs(value) do
+        if crater_location_icon_coords(source) ~= nil then
+            source_count = source_count + 1
+        end
+    end
+
+    if source_count == 0 then
+        display:SetOverlay("Position unavailable")
+    else
+        display:SetOverlay(string.format("%d live position source%s", source_count, source_count == 1 and "" or "s"))
+    end
 end
 
-local function set_player_marker(value)
+local active_markers = {}
+
+local function remove_marker(marker_id, map)
+    Tracker:UiHint("MapMarker " .. map, '{"id":' .. json_string(marker_id) .. ',"remove":true}')
+end
+
+local function set_marker(marker_id, placement, label)
+    Tracker:UiHint(
+        "MapMarker " .. placement.map,
+        string.format(
+            '{"id":%s,"x":%.6f,"y":%.6f,"appearance":{"type":"icon","path":"%s","size":16},"label":%s}',
+            json_string(marker_id),
+            placement.x,
+            placement.y,
+            player_marker_icon_path,
+            json_string(label)
+        )
+    )
+end
+
+local function set_player_markers(value)
     if Tracker == nil or Tracker.UiHint == nil then
         return
     end
 
+    local next_markers = {}
     local placement = crater_location_icon_coords(value)
-    local hint_name = "MapMarker Crater"
-    if placement == nil or placement.visible ~= true then
-        Tracker:UiHint(hint_name, player_marker_id)
-        return
+    if placement ~= nil and placement.visible == true then
+        next_markers[player_marker_id] = placement.map
+        set_marker(player_marker_id, placement, marker_label(value))
+    elseif type(value) == "table" then
+        for reporter_id, reporter_value in pairs(value) do
+            if type(reporter_id) == "string" and reporter_id ~= "" then
+                local reporter_placement = crater_location_icon_coords(reporter_value)
+                if reporter_placement ~= nil and reporter_placement.visible == true then
+                    local marker_id = player_marker_id .. "-" .. reporter_id
+                    next_markers[marker_id] = reporter_placement.map
+                    set_marker(marker_id, reporter_placement, marker_label(reporter_value))
+                end
+            end
+        end
     end
 
-    Tracker:UiHint(
-        "MapMarker " .. placement.map,
-        string.format("%s,%.6f,%.6f", player_marker_id, placement.x, placement.y)
-    )
+    for marker_id, map in pairs(active_markers) do
+        if next_markers[marker_id] == nil then
+            remove_marker(marker_id, map)
+        end
+    end
+    active_markers = next_markers
 end
 
 local function set_player_position(value)
     set_coordinate_overlay(value)
-    set_player_marker(value)
+    set_player_markers(value)
 end
 
 local function current_position_key()

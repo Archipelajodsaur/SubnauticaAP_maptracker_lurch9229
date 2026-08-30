@@ -27,6 +27,10 @@ Tracker = {
 Archipelago = {
     TeamNumber = 2,
     PlayerNumber = 7,
+    GetPlayerAlias = function(_self, slot)
+        assert(slot == 7, "marker label requested the wrong player alias")
+        return "Diver \"Blue\""
+    end,
     AddClearHandler = function(_self, _name, callback) handlers.clear = callback end,
     AddRetrievedHandler = function(_self, _name, callback) handlers.retrieved = callback end,
     AddSetReplyHandler = function(_self, _name, callback) handlers.updated = callback end,
@@ -64,32 +68,52 @@ for _, value in ipairs(fixtures.invalid) do
 end
 
 assert(overlay == "Position unavailable", "display must start without stale coordinates")
-assert(ui_hints[#ui_hints].name == "MapMarker Crater", "marker hint targeted the wrong map")
-assert(ui_hints[#ui_hints].value == "player", "marker must start cleared")
+assert(#ui_hints == 0, "no marker should be created before a position arrives")
 
 handlers.clear({})
 assert(requested_keys[1] == "LivePosition_2_7", "clear handler requested the wrong key")
 assert(notified_keys[1] == "LivePosition_2_7", "clear handler watched the wrong key")
-assert(ui_hints[#ui_hints].value == "player", "clear handler must remove the marker")
+assert(#ui_hints == 0, "clear handler must not create a marker")
 
 local hint_count = #ui_hints
 handlers.retrieved("OtherKey", {x = 1, y = 2, z = 3})
 assert(overlay == "Position unavailable", "unrelated DataStorage keys must be ignored")
 assert(#ui_hints == hint_count, "unrelated DataStorage keys must not move the marker")
 
+local function most_recent_hint(marker_id)
+    for index = #ui_hints, 1, -1 do
+        if ui_hints[index].value:find('"id":"' .. marker_id .. '"', 1, true) then
+            return ui_hints[index]
+        end
+    end
+    return nil
+end
+
+-- Previous publishers write one direct coordinate object. Keep rendering that
+-- form while new publishers write a reporter-ID keyed dictionary.
 handlers.retrieved("LivePosition_2_7", {x = 842.34, y = -127.76, z = -416.24})
 assert(overlay == "X: 842.3   Y: -127.8   Z: -416.2", "retrieved coordinates were formatted incorrectly")
-assert(ui_hints[#ui_hints].name == "MapMarker Crater", "marker update targeted the wrong map")
-assert(ui_hints[#ui_hints].value == "player,568.468000,483.248000",
+assert(most_recent_hint("player").name == "MapMarker Crater", "marker update targeted the wrong map")
+assert(most_recent_hint("player").value == '{"id":"player","x":568.468000,"y":483.248000,"appearance":{"type":"icon","path":"images/ui/live-player.png","size":16},"label":"Diver \\"Blue\\""}',
     "retrieved coordinates produced the wrong marker position")
 
-handlers.updated("LivePosition_2_7", {x = -1, y = 2.25, z = 3}, nil)
-assert(overlay == "X: -1.0   Y: 2.2   Z: 3.0", "updated coordinates were formatted incorrectly")
-assert(ui_hints[#ui_hints].value == "player,399.800000,399.400000",
-    "updated coordinates produced the wrong marker position")
+handlers.updated("LivePosition_2_7", {
+    desktop = {x = -1, y = 2.25, z = 3, label = "Desktop"},
+    laptop = {x = 842.34, y = -127.76, z = -416.24},
+}, nil)
+assert(overlay == "2 live position sources", "multi-reporter coordinate display was formatted incorrectly")
+assert(most_recent_hint("player").value == '{"id":"player","remove":true}',
+    "legacy marker must be removed when reporters are identified")
+assert(most_recent_hint("player-desktop").value == '{"id":"player-desktop","x":399.800000,"y":399.400000,"appearance":{"type":"icon","path":"images/ui/live-player.png","size":16},"label":"Desktop"}',
+    "configured reporter label was not used")
+assert(most_recent_hint("player-laptop").value == '{"id":"player-laptop","x":568.468000,"y":483.248000,"appearance":{"type":"icon","path":"images/ui/live-player.png","size":16},"label":"Diver \\"Blue\\""}',
+    "unlabeled reporter must use the player alias")
 
-handlers.updated("LivePosition_2_7", {x = 0 / 0, y = 2, z = 3}, nil)
+handlers.updated("LivePosition_2_7", {desktop = {x = 0 / 0, y = 2, z = 3}}, nil)
 assert(overlay == "Position unavailable", "invalid coordinate updates must clear the display")
-assert(ui_hints[#ui_hints].value == "player", "invalid coordinate updates must remove the marker")
+assert(most_recent_hint("player-desktop").value == '{"id":"player-desktop","remove":true}',
+    "invalid coordinate updates must remove the reporter marker")
+assert(most_recent_hint("player-laptop").value == '{"id":"player-laptop","remove":true}',
+    "missing reporter markers must be removed")
 
 print("location_tracking.lua: all fixtures passed")
