@@ -1,4 +1,4 @@
--- Waystone's live-position contract. PopTracker ignores this global.
+-- Host-owned live-position contract.
 --
 -- The Crater image is a global X/Z projection. CaveNetworks is a schematic, so
 -- this intentionally does not try to infer an underground region from depth.
@@ -38,19 +38,9 @@ local function crater_position_icon_coords(value)
     }
 end
 
-local function crater_location_icon_coords(value)
-    local placement = crater_position_icon_coords(value)
-    if placement ~= nil then
-        return placement
-    end
-
-    if type(value) == "table" then
-        for _, reporter_value in pairs(value) do
-            placement = crater_position_icon_coords(reporter_value)
-            if placement ~= nil then
-                return placement
-            end
-        end
+local function label_for(value)
+    if type(value) == "table" and type(value.label) == "string" and value.label ~= "" then
+        return value.label
     end
 
     return nil
@@ -66,14 +56,14 @@ local function location_markers(value)
                 x = placement.x,
                 y = placement.y,
                 visible = placement.visible,
-                label = type(value.label) == "string" and value.label or nil,
+                label = label_for(value),
                 debug = placement.debug,
             },
         }
     end
 
     if type(value) ~= "table" then
-        return nil
+        return {}
     end
 
     local markers = {}
@@ -87,21 +77,30 @@ local function location_markers(value)
                     x = reporter_placement.x,
                     y = reporter_placement.y,
                     visible = reporter_placement.visible,
-                    label = type(reporter_value.label) == "string" and reporter_value.label or nil,
+                    label = label_for(reporter_value),
                     debug = reporter_placement.debug,
                 })
             end
         end
     end
 
-    return #markers > 0 and markers or nil
+    table.sort(markers, function(left, right)
+        return left.id < right.id
+    end)
+
+    return markers
 end
 
 LOCATION_TRACKING = {
     api_version = 1,
     location_setting_key = "LivePosition_{team}_{player}",
-    location_icon_coords = crater_location_icon_coords,
+    location_markers = location_markers,
 }
+
+-- PopTracker versions without a native LOCATION_TRACKING host use this
+-- compatibility path. Native hosts set this flag before pack init, own the
+-- DataStorage subscription and marker lifecycle, and call location_markers.
+local use_legacy_poptracker_tracking = LOCATION_TRACKING_HOST ~= true
 
 local watched_position_key = nil
 local player_marker_id = "player"
@@ -135,14 +134,6 @@ local function player_marker_label()
     return "Player"
 end
 
-local function marker_label(value)
-    if type(value) == "table" and type(value.label) == "string" and value.label ~= "" then
-        return value.label
-    end
-
-    return player_marker_label()
-end
-
 local function set_coordinate_overlay(value)
     if Tracker == nil or Tracker.FindObjectForCode == nil then
         return
@@ -165,7 +156,7 @@ local function set_coordinate_overlay(value)
     end
 
     local markers = location_markers(value)
-    local source_count = markers ~= nil and #markers or 0
+    local source_count = #markers
 
     if source_count == 0 then
         display:SetOverlay("Position unavailable")
@@ -200,27 +191,31 @@ local function set_player_markers(value)
     end
 
     local next_markers = {}
+    local next_marker_values = {}
     local placement = crater_position_icon_coords(value)
-    if placement ~= nil and placement.visible == true then
-        next_markers[player_marker_id] = placement.map
-        set_marker(player_marker_id, placement, marker_label(value))
-    else
-        local markers = location_markers(value)
-        if markers ~= nil then
-            for _, marker in ipairs(markers) do
-                if marker.visible == true then
-                    local marker_id = player_marker_id .. "-" .. marker.id
-                    next_markers[marker_id] = marker.map
-                    set_marker(marker_id, marker, marker.label or player_marker_label())
-                end
+    local markers = location_markers(value)
+    for _, marker in ipairs(markers) do
+        if marker.visible == true then
+            local marker_id = player_marker_id .. "-" .. marker.id
+            if placement ~= nil then
+                -- Retain the legacy marker identity for direct-position publishers.
+                marker_id = player_marker_id
             end
+            next_markers[marker_id] = marker.map
+            next_marker_values[marker_id] = {
+                placement = marker,
+                label = marker.label or player_marker_label(),
+            }
         end
     end
 
     for marker_id, map in pairs(active_markers) do
-        if next_markers[marker_id] == nil then
+        if next_markers[marker_id] == nil or next_markers[marker_id] ~= map then
             remove_marker(marker_id, map)
         end
+    end
+    for marker_id, marker_value in pairs(next_marker_values) do
+        set_marker(marker_id, marker_value.placement, marker_value.label)
     end
     active_markers = next_markers
 end
@@ -239,7 +234,9 @@ local function current_position_key()
         return nil
     end
 
-    return string.format("LivePosition_%d_%d", Archipelago.TeamNumber, Archipelago.PlayerNumber)
+    return LOCATION_TRACKING.location_setting_key
+        :gsub("{team}", tostring(Archipelago.TeamNumber))
+        :gsub("{player}", tostring(Archipelago.PlayerNumber))
 end
 
 local function on_position_clear(_slot_data)
@@ -260,9 +257,12 @@ local function on_position_value(key, value)
     end
 end
 
-set_player_position(nil)
+if use_legacy_poptracker_tracking then
+    set_player_position(nil)
+end
 
-if Archipelago ~= nil
+if use_legacy_poptracker_tracking
+    and Archipelago ~= nil
     and Archipelago.AddClearHandler ~= nil
     and Archipelago.AddRetrievedHandler ~= nil
     and Archipelago.AddSetReplyHandler ~= nil
